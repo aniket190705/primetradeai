@@ -5,10 +5,12 @@ const asyncHandler = require("../utils/asyncHandler");
 const { registerUser, loginUser } = require("../services/authService");
 const { generateAccessToken, generateRefreshToken } = require("../utils/jwt");
 
+const isProduction = process.env.NODE_ENV === "production";
+
 const cookieOptions = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "strict",
+  secure: isProduction,               // HTTPS only in production
+  sameSite: isProduction ? "none" : "strict", // cross-domain in prod, strict locally
   maxAge: 7 * 24 * 60 * 60 * 1000,
 };
 

@@ -305,3 +305,154 @@ docker compose down
 - JWT auth middleware can be reused for any new protected routes.
 - Redis caching can be extended to other read-heavy APIs.
 - MongoDB pagination keeps the task API practical as data grows.
+
+---
+
+## Deploying to Vercel
+
+The app is split into two separate Vercel projects: one for the **backend** (Express API) and one for the **frontend** (React/Vite). Deploy the backend first so you have its URL before configuring the frontend.
+
+### Prerequisites
+
+- A [Vercel account](https://vercel.com) (free)
+- A [MongoDB Atlas](https://cloud.mongodb.com) cluster (free tier works)
+- An [Upstash](https://upstash.com) account for Redis (free tier works — optional but recommended)
+- Your code pushed to a GitHub / GitLab / Bitbucket repository
+
+---
+
+### Part 1 — Set up MongoDB Atlas
+
+If you are already using a MongoDB Atlas URI in your `.env`, skip to Part 2.
+
+1. Go to https://cloud.mongodb.com and sign in.
+2. Create a new **free** cluster (M0).
+3. Under **Database Access**, create a database user with a username and password.
+4. Under **Network Access**, click **Add IP Address** → **Allow Access From Anywhere** (`0.0.0.0/0`).  
+   *(Required so Vercel's serverless functions can connect.)*
+5. Click **Connect** on your cluster → **Drivers** → copy the connection string.  
+   It looks like: `mongodb+srv://<user>:<password>@cluster0.xxxxx.mongodb.net/?appName=Cluster0`
+6. Save this URI — you will paste it as `MONGO_URI` in the next step.
+
+---
+
+### Part 2 — Set up Upstash Redis (optional but recommended)
+
+Skip this part if you don't want caching. The app works without Redis.
+
+1. Go to https://upstash.com and sign in.
+2. Click **Create Database** → choose a region close to your Vercel deployment region → create.
+3. Open the database and go to the **REST API** tab.
+4. Copy the **UPSTASH_REDIS_REST_URL** and **UPSTASH_REDIS_REST_TOKEN** values.
+5. Save these — you will paste them as environment variables in Part 3.
+
+---
+
+### Part 3 — Deploy the Backend
+
+1. **Push your code to GitHub** (if not already):
+   ```bash
+   git add .
+   git commit -m "chore: add vercel deployment config"
+   git push
+   ```
+
+2. **Go to https://vercel.com** → click **Add New Project**.
+
+3. **Import your GitHub repository**.
+
+4. On the project configuration screen:
+   - **Root Directory**: leave as `.` (the repo root — `vercel.json` is here)
+   - **Framework Preset**: select **Other**
+   - **Build Command**: leave empty
+   - **Output Directory**: leave empty
+
+5. **Add Environment Variables** — click *Environment Variables* and add all of these:
+
+   | Name | Value |
+   |------|-------|
+   | `NODE_ENV` | `production` |
+   | `MONGO_URI` | Your MongoDB Atlas connection string |
+   | `JWT_ACCESS_SECRET` | A long random string (run `node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"`) |
+   | `JWT_REFRESH_SECRET` | Another long random string (different from above) |
+   | `CLIENT_URL` | Leave blank for now — you'll add this after deploying the frontend |
+   | `UPSTASH_REDIS_REST_URL` | From Upstash (skip if not using Redis) |
+   | `UPSTASH_REDIS_REST_TOKEN` | From Upstash (skip if not using Redis) |
+
+6. Click **Deploy**. Wait for the build to finish.
+
+7. **Copy the backend URL** — it will look like `https://primetradeai-xxxx.vercel.app`. Save it.
+
+8. **Add `CLIENT_URL`** — go to your backend Vercel project → **Settings** → **Environment Variables** → add:
+   - `CLIENT_URL` = *(your frontend URL — add this after Part 4)*
+
+---
+
+### Part 4 — Deploy the Frontend
+
+1. **Go to https://vercel.com** → click **Add New Project** again (a second, separate project).
+
+2. **Import the same GitHub repository**.
+
+3. On the project configuration screen:
+   - **Root Directory**: set to `frontend`
+   - **Framework Preset**: Vercel should auto-detect **Vite**
+   - **Build Command**: `npm run build`
+   - **Output Directory**: `dist`
+
+4. **Add Environment Variables**:
+
+   | Name | Value |
+   |------|-------|
+   | `VITE_API_URL` | `https://your-backend.vercel.app/api/v1` *(use the URL from Part 3 Step 7)* |
+
+5. Click **Deploy**. Wait for the build to finish.
+
+6. **Copy the frontend URL** — it will look like `https://primetradeai-frontend-xxxx.vercel.app`.
+
+---
+
+### Part 5 — Connect Frontend ↔ Backend (CORS)
+
+Now that both are deployed:
+
+1. Go to your **backend** Vercel project → **Settings** → **Environment Variables**.
+2. Update (or add) `CLIENT_URL` = your frontend URL (e.g. `https://primetradeai-frontend-xxxx.vercel.app`).  
+   *(No trailing slash.)*
+3. Go to **Deployments** → click the three dots on the latest deployment → **Redeploy** to apply the new env var.
+
+---
+
+### Part 6 — Seed the Admin User (optional)
+
+Vercel doesn't let you run one-off scripts directly, but you can seed via a local command pointing at the production database:
+
+1. Temporarily set your local `.env` `MONGO_URI` to the Atlas production URI.
+2. Run:
+   ```bash
+   node seedAdmin.js
+   ```
+3. Revert your local `.env` `MONGO_URI` back to the local/dev value.
+
+---
+
+### Deployed App URLs
+
+| Service | URL pattern |
+|---------|------------|
+| Frontend | `https://primetradeai-frontend-xxxx.vercel.app` |
+| Backend API | `https://primetradeai-xxxx.vercel.app/api/v1` |
+| Swagger Docs | `https://primetradeai-xxxx.vercel.app/api-docs` |
+| Health Check | `https://primetradeai-xxxx.vercel.app/health` |
+
+---
+
+### Troubleshooting
+
+| Problem | Cause | Fix |
+|---------|-------|-----|
+| `CORS error` on frontend | `CLIENT_URL` doesn't match frontend domain exactly | Update `CLIENT_URL` in backend env vars and redeploy |
+| `401` on all API calls after login | Cookie `sameSite` mismatch | Ensure `NODE_ENV=production` is set on the backend — the code sets `sameSite: 'none'` only in production |
+| `500` on first request, works after | Cold start DB connection timing | This is normal on the first request after inactivity; the connection is cached for subsequent requests |
+| Frontend shows blank page on refresh | React Router not configured for Vercel | Ensure `frontend/vercel.json` is committed to the repo |
+| Redis not working | Upstash env vars missing | Add `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` to backend env vars; app works without them |
