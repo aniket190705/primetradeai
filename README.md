@@ -1,4 +1,4 @@
-# PrimeTradeAI Internship Backend
+# PrimeTradeAI-TaskFlow Backend
 
 This is a full-stack task management project built with Node.js, Express.js, MongoDB, JWT authentication, Redis caching, Swagger docs, Docker, and a React (Vite) frontend.
 
@@ -118,13 +118,6 @@ CLIENT_URL=http://localhost:3000
 ADMIN_EMAIL=admin@example.com
 ADMIN_PASSWORD=admin1234
 ```
-
-> **Important — Port conflict on Windows:** Docker Desktop reserves port `5000` on Windows. Use `PORT=8080` (or any other free port) to avoid an `ERR_EMPTY_RESPONSE` error in the browser.
-
-> **JWT secrets:** Replace `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` with long random strings. You can generate them with:
-> ```bash
-> node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
-> ```
 
 ### 4. Start MongoDB and Redis locally
 
