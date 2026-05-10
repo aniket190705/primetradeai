@@ -2,6 +2,10 @@
 
 This is a full-stack task management project built with Node.js, Express.js, MongoDB, JWT authentication, Redis caching, Swagger docs, Docker, and a React (Vite) frontend.
 
+## 🚀 Live Demo
+
+**[https://primetradeai-nuxk.vercel.app/login](https://primetradeai-nuxk.vercel.app/login)**
+
 ## Features
 
 - User registration, login, refresh token, and logout
